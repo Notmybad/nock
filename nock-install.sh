@@ -114,7 +114,7 @@ function generate_wallet() {
   fi
 
   cd "$NCK_DIR" || exit 1
-  echo -e "[*] 自动生成钱包助记词与主私钥..."
+  echo -e "[*] 自动生成钱包助记词与私钥..."
   WALLET_CMD="./target/release/nockchain-wallet"
   
   # 生成种子短语并直接捕获输出
@@ -132,7 +132,7 @@ function generate_wallet() {
   echo -e "[*] 原始输出已保存至 $NCK_DIR/wallet.txt"
 
   # 从输出中提取种子短语
-  SEED_PHRASE=$(echo "$SEED_OUTPUT" | grep -iE "seed phrase|mnemonic|wallet seed|recovery phrase" | sed 's/.*: //')
+  SEED_PHRASE=$(echo "$SEED_OUTPUT" | grep -iE "memo:" | sed 's/.*memo: //I')
   if [ -z "$SEED_PHRASE" ]; then
     echo -e "${RED}[-] 无法提取助记词！${RESET}"
     pause_and_return
@@ -140,28 +140,13 @@ function generate_wallet() {
   fi
   echo -e "${YELLOW}助记词:${RESET}\n$SEED_PHRASE"
 
-  # 生成主私钥
-  MASTER_PRIVKEY=$("$WALLET_CMD" gen-master-privkey --seedphrase "$SEED_PHRASE" | grep -i "master private key" | awk '{print $NF}')
-  if [ -z "$MASTER_PRIVKEY" ]; then
-    echo -e "${RED}[-] 无法生成主私钥！${RESET}"
-    pause_and_return
-    return
-  fi
-  echo -e "${YELLOW}主私钥:${RESET}\n$MASTER_PRIVKEY"
-
-  # 生成主公钥
-  MASTER_PUBKEY=$("$WALLET_CMD" gen-master-pubkey --master-privkey "$MASTER_PRIVKEY" | grep -i "master public key" | awk '{print $NF}')
-  if [ -z "$MASTER_PUBKEY" ]; then
-    echo -e "${RED}[-] 无法生成主公钥！${RESET}"
-    pause_and_return
-    return
-  fi
-  echo -e "${YELLOW}主公钥:${RESET}\n$MASTER_PUBKEY"
-
+  # 提取公钥
+  PUBKEY=$(echo "$SEED_OUTPUT" | grep -oE 'wallet: keygen: public key: base58 "[1-9A-HJ-NP-Za-km-z]+"' wallet.txt | sed -E 's/.*base58 "//; s/"$//')
+  echo "$PUBKEY"
   # 写入 Makefile
   echo -e "[*] 写入 Makefile 挖矿公钥..."
-  sed -i "s|^export MINING_PUBKEY :=.*$|export MINING_PUBKEY := $MASTER_PUBKEY|" Makefile
-  echo -e "${GREEN}[+] 钱包生成并配置完成。${RESET}"
+  sed -i "s|^export MINING_PUBKEY :=.*$|export MINING_PUBKEY := $PUBKEY|" Makefile
+  echo -e "${GREEN}[+] 钱包生成并写入Makefile配置完成。${RESET}"
   
   pause_and_return
 }
